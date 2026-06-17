@@ -1,1 +1,0 @@
-/usr/bin/c++ -m64 -O3 -DNDEBUG -m64 -Wl,--dependency-file=CMakeFiles/home_directory_task.dir/link.d CMakeFiles/home_directory_task.dir/main.cpp.o -o home_directory_task
