@@ -1,0 +1,3 @@
+/home/loi/Desktop/home_directory_task/build/build/Release/CMakeFiles/home_directory_task.dir
+/home/loi/Desktop/home_directory_task/build/build/Release/CMakeFiles/edit_cache.dir
+/home/loi/Desktop/home_directory_task/build/build/Release/CMakeFiles/rebuild_cache.dir

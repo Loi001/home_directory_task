@@ -5,8 +5,9 @@
 #include <algorithm>
 #include <thread>
 #include <fstream>
+#include <limits>
 
-#include "single_include/nlohmann/json.hpp"
+#include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
 
@@ -22,24 +23,27 @@ std::unordered_set<std::string> image_extensions = {
 	".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff", ".tif", ".svg", ".heic"
 };
 
-bool check_directiry(const std::string& dir_path, const std::string& output_path) {
+bool is_valid_directorypath(const std::string& path)
+{
+	try{
+		if (std::filesystem::create_directory(path)) {
+            std::filesystem::remove(path); 
+            return true;
+        }
+	}catch(...){
+		return false;
+	}
+	return false;
+}
+
+bool check_directiry(std::filesystem::path dir_path, std::filesystem::path output_path) {
 	try {
-		std::filesystem::path dir = dir_path;
-		std::filesystem::path out = output_path;
 		json media_files;
 		media_files["audio files: "] = json::array();
 		media_files["video files: "] = json::array();
 		media_files["image files: "] = json::array();
-		if (!std::filesystem::exists(dir) || !std::filesystem::is_directory(dir) || !std::filesystem::exists(output_path) 
-			|| !std::filesystem::is_directory(output_path)) {
-			std::cout << "Error: directory does not exists!" << std::endl;
-			return false;
-		}
-		std::filesystem::path media_dir = out / "media_files";
-		if (!std::filesystem::exists(media_dir)) {
-			std::filesystem::create_directories(media_dir);
-		}
-		for (const auto& entry : std::filesystem::directory_iterator(dir)) {
+		std::filesystem::path media_dir = dir_path / "media_files";
+		for (const auto& entry : std::filesystem::directory_iterator(dir_path)) {
 			if (!entry.is_regular_file()) continue;
 			std::string extensions = entry.path().extension().string();
 			std::transform(extensions.begin(), extensions.end(), extensions.begin(), [](unsigned char c) { return std::tolower(c); });
@@ -76,17 +80,35 @@ int main() {
 	int delay = 0;
 	std::cout << "Enter home directory: ";
 	std::cin >> home_directory;
-	std::cout << "Enter outpt directory: ";
-	std::cin >> output_directory;
-	std::cout << "Enter delay(ms): ";
-	std::cin >> delay;
-	if (delay == 0) {
-		std::cout << "Error: delay cannot be 0!";
+	if(!std::filesystem::is_directory(home_directory) || std::filesystem::is_regular_file(home_directory)){
+		std::cout << "Error: directory doest not exit or it's not a directory\n";
 		return 0;
 	}
-	while (true) {
-		if (!check_directiry(home_directory, output_directory)) break;
+	std::cout << "Enter: output directory: ";
+	std::cin >> output_directory;
+	if(!is_valid_directorypath(output_directory)) { 
+		std::cout << "Error: invalid directory name\n";
+		return 0;
+	}
+	std::cout << "Enter delay: ";
+	std::cin >> delay;
+	while(!(std::cin >> delay)){
+		std::cin.clear();
+		std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+		std::cout << "Error: invalid input type\n";
+	}
+	if(delay == 0){
+		std::cout << "Error: delay cannot be 0\n";
+	}
+
+	std::filesystem::path home(home_directory);
+    std::filesystem::path out(output_directory);
+
+	while(true)
+	{
+		if(!check_directiry(home, out)) { return 0; }
 		std::this_thread::sleep_for(std::chrono::milliseconds(delay));
 	}
+
 	return 0;
 }
