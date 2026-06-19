@@ -7,34 +7,59 @@
 #include <fstream>
 #include <limits>
 
+#define DOCTEST_CONFIG_IMPLEMENT
+#include <doctest/doctest.h>
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
 
-std::unordered_set<std::string> audio_extensions = {
-	".mp3", ".wav", ".flac", ".aac", ".ogg"
-};
-
-std::unordered_set<std::string> video_extensions = {
-	".mp4", ".avi", ".webm", ".mkv", ".mov", ".flv", ".wmv", ".m4v", ".3gp", ".mpeg", ".mpg"
-};
-
-std::unordered_set<std::string> image_extensions = {
-	".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff", ".tif", ".svg", ".heic"
-};
+const std::unordered_set<std::string> audio_extensions = { ".mp3", ".wav", ".flac", ".aac", ".ogg" };
+const std::unordered_set<std::string> video_extensions = { ".mp4", ".avi", ".webm", ".mkv", ".mov", ".flv", ".wmv", ".m4v", ".3gp", ".mpeg", ".mpg" };
+const std::unordered_set<std::string> image_extensions = { ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff", ".tif", ".svg", ".heic" };
 
 bool is_valid_directory_path(const std::string& path)
 {
-	try {
-		if (std::filesystem::create_directory(path)) {
-			std::filesystem::remove(path);
+	if(path.empty()) return false;
+	std::error_code err_code;
+	std::filesystem::path directory_path(path);
+	auto status = std::filesystem::status(directory_path, err_code);
+	if(!err_code){
+		if(!std::filesystem::is_directory(directory_path)) return false;
+		auto premissions = status.permissions();
+		if((premissions & std::filesystem::perms::owner_write) != std::filesystem::perms::none) 
+		{
 			return true;
 		}
 	}
-	catch (...) {
+	std::filesystem::path parent = directory_path.parent_path();
+	if (parent.empty()) {
+		parent = std::filesystem::current_path();
+	}
+	std::error_code parent_err_code;
+	auto parent_status = std::filesystem::status(parent, parent_err_code);
+	if(parent_err_code || !std::filesystem::is_directory(parent_status)){
 		return false;
 	}
-	return false;
+	auto parent_premissons = parent_status.permissions();
+	if((parent_premissons & std::filesystem::perms::owner_write) != std::filesystem::perms::none) return true;
+	return true;
+}
+
+TEST_CASE("test1") {
+    CHECK(is_valid_directory_path(".") == true);
+}
+
+TEST_CASE("test2") {
+    bool result = is_valid_directory_path("/");
+    CHECK((result == true || result == false)); 
+}
+
+TEST_CASE("test3") {
+    CHECK(is_valid_directory_path("./im_does_not_exists") == true);
+}
+
+TEST_CASE("test4") {
+    CHECK(is_valid_directory_path("") == false);
 }
 
 bool check_directory(std::filesystem::path dir_path, std::filesystem::path output_path) {
@@ -81,7 +106,31 @@ bool check_directory(std::filesystem::path dir_path, std::filesystem::path outpu
 	return true;
 }
 
-int main() {
+int main(int argc, char** argv) {
+	// tests
+	doctest::Context context;
+	context.applyCommandLine(argc, argv);
+
+	bool testChecks = false;
+	for(int i = 1; i < argc; ++i)
+	{
+		std::string arg = argv[i];
+		if (arg.rfind("--test", 0) == 0 || arg.rfind("-t", 0) == 0 ||
+			arg.rfind("--list", 0) == 0 || arg == "--run-tests") {
+			testChecks = true;
+			break;
+		}
+	}
+	if (testChecks) {
+		int test_result = context.run();
+		if (context.shouldExit()) {
+			std::cout << "Test result: " << test_result << std::endl;
+			return test_result;
+		}
+		std::cout << "Test result: " << test_result << std::endl;
+	}
+
+	// main logic
 	std::string home_directory, output_directory;
 	int delay = 0;
 

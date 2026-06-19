@@ -1,8 +1,8 @@
 
-.PHONY : build install
+.PHONY : build install lint
 
 build: 	
-	cmake --build --preset conan-release
+	cmake --build --preset conan-debug
 
 install:
 	echo hello
@@ -13,5 +13,8 @@ install:
 	source ~/.bashrc
 	conan profile detect
 	conan install . --output-folder=build --build=missing
-	cmake --preset conan-release
+	cmake --preset conan-debug
 	apt-get install clang-tidy
+	sudo apt-get install doctest-dev
+lint:
+	clang-tidy -p build/compile_commands.json main.cpp
