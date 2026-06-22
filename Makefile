@@ -16,5 +16,7 @@ install:
 	cmake --preset conan-debug
 	apt-get install clang-tidy
 	sudo apt-get install doctest-dev
+	sudo apt install libspdlog-dev
+	sudo apt install libcpp-httplib-dev
 lint:
 	clang-tidy -p build/compile_commands.json main.cpp
