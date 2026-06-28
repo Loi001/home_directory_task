@@ -26,14 +26,11 @@ const std::unordered_set<std::string> image_extensions = { ".jpg", ".jpeg", ".pn
 namespace output {
 	enum type { ALL, SERVER, FILE, CONSOLE };
 
-	inline type output_data_type = ALL;
-	inline std::filesystem::path output_dir;
-
 	static const std::unordered_map<std::string, output::type> output_types = {
 	{"console", output::CONSOLE},
 	{"file", output::FILE},
 	{"server", output::SERVER},
-	 {"all", output::ALL},
+	{"all", output::ALL},
 	};
 
 	std::string json_data = "{}";
@@ -48,14 +45,14 @@ namespace output {
 	{
 		spdlog::debug("Start server");
 		httplib::Server server;
-		server.Get("/media_files", [](const httplib::Request& request, httplib::Response& response) {
+		server.Get("/media-files", [](const httplib::Request& request, httplib::Response& response) {
 			response.set_content(get_output_data(), "application/json");
 		});
-		spdlog::debug("HTTP server running on http://localhost:1234/media_files");
+		spdlog::info("HTTP server running on http://localhost:1234/media-files");
 		server.listen("localhost", 1234);
 	}
 
-	void set_output_data(const json& data) {
+	void set_output_data(const json& data, type output_data_type, std::filesystem::path output_dir) {
 		spdlog::debug("Set new json data");
 		std::lock_guard<std::mutex> lock(json_mutex);
 		json_data = data.dump(4);
@@ -64,7 +61,7 @@ namespace output {
 			std::cout << json_data;
 		}
 		if (output_data_type == FILE || output_data_type == ALL) {
-			std::filesystem::path json_path = output_dir / "media_list.json";
+			std::filesystem::path json_path = output_dir / "media-list.json";
 			spdlog::debug("output path: " + json_path.string());
 			std::ofstream output_file(json_path);
 			if (!output_file.is_open()) {
@@ -73,13 +70,6 @@ namespace output {
 				output_file << json_data;
 				output_file.close();
 			}
-		}
-		if (output_data_type == SERVER || output_data_type == ALL) {
-			static std::once_flag server_started;
-			std::call_once(server_started, []() {
-				std::thread server_thread(start_server);
-				server_thread.detach();
-			});
 		}
 	}
 }
@@ -104,10 +94,7 @@ namespace logs {
     {"all",     logs::ALL},
 	};
 
-	inline spdlog::level::level_enum log_level = spdlog::level::info;
-	inline type log_output_type = ALL;
-
-	void init_log()
+	void init_log(type log_output_type, spdlog::level::level_enum log_level)
 	{
 		std::vector<spdlog::sink_ptr> sinks;
 		if (log_output_type == CONSOLE || log_output_type == ALL) {
@@ -147,7 +134,7 @@ namespace test{
 	void start_test(doctest::Context& context)
 	{
 		if(test_value == NONE) return;
-		spdlog::debug("Start test");
+		spdlog::info("Start test");
 		auto suite = test_suites.find(test_value);
 		if (suite != test_suites.end()) {
 			context.setOption("test-suite", suite->second.c_str());
@@ -192,9 +179,9 @@ bool validate_directory_path(const std::string& path)
 	return false;
 }
 
-bool walk_directory(std::filesystem::path dir_path) {
+json walk_directory(std::filesystem::path dir_path) {
+	json media_files;
 	try {
-		json media_files;
 		media_files["audio_files"] = json::array();
 		media_files["video_files"] = json::array();
 		media_files["image_files"] = json::array();
@@ -215,59 +202,71 @@ bool walk_directory(std::filesystem::path dir_path) {
 				media_files["image_files"].push_back(entry.path().filename().string());
 			}
 		}
-		output::set_output_data(media_files);
 	} catch (std::filesystem::filesystem_error& e) {
 		spdlog::error(e.what());
-		return false;
 	}
-	return true;
+	return media_files;
 }
 
 TEST_SUITE("validate_directory_path") {
-	TEST_CASE("current dir") {
-		CHECK(validate_directory_path(".") == true);
-	}
-	TEST_CASE("root dir") {
-		bool result = validate_directory_path("/");
-		CHECK((result == true || result == false));
-	}
-	TEST_CASE("empty string") {
-		CHECK(validate_directory_path("") == false);
-	}
+    TEST_CASE("current dir") {
+        CHECK(validate_directory_path(".") == true);
+    }
+    TEST_CASE("root dir") {
+        bool result = validate_directory_path("/");
+        CHECK((result == true || result == false));
+    }
+    TEST_CASE("non exist dir") {
+        CHECK(validate_directory_path("/nonexistent") == false);
+    }
 }
 
 TEST_SUITE("walk_directory") {
-	TEST_CASE("valid dir") {
-		CHECK(walk_directory(".") == true);
-	}
-	TEST_CASE("nonexistent dir") {
-		CHECK(walk_directory("/nonexistent_path") == false);
-	}
+    TEST_CASE("valid dir") {
+        json result = walk_directory(".");
+        CHECK(result.contains("audio_files"));
+        CHECK(result.contains("video_files"));
+        CHECK(result.contains("image_files"));
+        CHECK(result["audio_files"].is_array());
+        CHECK(result["video_files"].is_array());
+        CHECK(result["image_files"].is_array());
+    }
+    TEST_CASE("nonexistent dir") {
+        json result = walk_directory("/nonexistent_path");
+        CHECK(result.contains("audio_files"));
+        CHECK(result["audio_files"].is_array());
+        CHECK(result["audio_files"].empty());
+    }
 }
 
 int main(int argc, char** argv) {
 	doctest::Context context;
 	context.applyCommandLine(argc, argv);
 
+	logs::type log_output_type = logs::ALL;
+	spdlog::level::level_enum logs_level = spdlog::level::trace;
+	test::type test_value = test::ALL;
+	output::type output_data_type = output::ALL;
+
 	for (int i = 1; i < argc; ++i)
 	{
 		std::string arg = argv[i];
-		auto test_result = parse_arg(arg, "--test=", test::test_values, test::test_value);
+		auto test_result = parse_arg(arg, "--test=", test::test_values, test_value);
 		if (test_result == parse_result::INVALID_VALUE) {
 			std::cout << "Invalid test value: " << arg << std::endl;
 			return 1;
 		}
-		auto log_type = parse_arg(arg, "--log-type=", logs::log_types, logs::log_output_type);
+		auto log_type = parse_arg(arg, "--log-type=", logs::log_types, log_output_type);
 		if (log_type == parse_result::INVALID_VALUE) {
 			std::cout << "Invalid log type: " << arg << std::endl;
 			return 1;
 		}
-		auto log_level = parse_arg(arg, "--log-level=", logs::log_levels, logs::log_level);
+		auto log_level = parse_arg(arg, "--log-level=", logs::log_levels, logs_level);
 		if (log_level == parse_result::INVALID_VALUE) {
 			std::cout << "Invalid log level: " << arg << std::endl;
 			return 1;
 		}
-		auto output_type = parse_arg(arg, "--output-type=", output::output_types, output::output_data_type);
+		auto output_type = parse_arg(arg, "--output-type=", output::output_types, output_data_type);
 		if (output_type == parse_result::INVALID_VALUE) {
 			std::cout << "Invalid output type: " << arg << std::endl;
 			return 1;
@@ -275,12 +274,13 @@ int main(int argc, char** argv) {
 
 	}
 
-	logs::init_log();
+	logs::init_log(log_output_type, logs_level);
 	spdlog::flush_on(spdlog::level::debug);
 
 	test::start_test(context);
 
 	std::string home_directory;
+	std::filesystem::path output_dir;
 
 	std::cout << "Enter home directory: ";
 	std::cin >> home_directory;
@@ -289,7 +289,7 @@ int main(int argc, char** argv) {
 		return 0;
 	}
 
-	if (output::output_data_type == output::FILE || output::output_data_type == output::ALL) {
+	if (output_data_type == output::FILE || output_data_type == output::ALL) {
 		std::string output_path;
 		std::cout << "Enter output directory: ";
 		std::cin >> output_path;
@@ -297,7 +297,17 @@ int main(int argc, char** argv) {
 			spdlog::critical("invalid or inaccessible output directory");
 			return 0;
 		}
-		output::output_dir = std::filesystem::absolute(output_path);
+		output_dir = std::filesystem::absolute(output_path);
+	}
+
+	
+	if(output_data_type == output::SERVER || output_data_type == output::ALL)
+	{
+		static std::once_flag server_started;
+			std::call_once(server_started, []() {
+				std::thread server_thread(output::start_server);
+				server_thread.detach();
+			});
 	}
 
 	int delay = 0;
@@ -316,7 +326,7 @@ int main(int argc, char** argv) {
 
 	while (true)
 	{
-		if (!walk_directory(home)) { break; }
+		output::set_output_data(walk_directory(home), output_data_type, output_dir);
 		std::this_thread::sleep_for(std::chrono::milliseconds(delay));
 	}
 
