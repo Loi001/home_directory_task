@@ -1,0 +1,30 @@
+name: Build
+on:
+  push:
+    paths-ignore:
+      - .github/workflows/publish.yaml
+      - .github/workflows/publish-chart.yaml
+      - helm/**
+      - README.md
+env:
+  IMAGE_NAME: ubuntu:26.04
+jobs:
+  Build:
+    runs-on: ubuntu:26.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: Install
+        run: make install
+
+      - name: Lint
+        run: make lint
+
+      - name: Test
+        run: make test
+
+      - name: Build
+        run: make build
+        
