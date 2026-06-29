@@ -1,0 +1,9 @@
+[requires]
+nlohmann_json/3.12.0
+doctest/2.4.11
+spdlog/1.17.0
+cpp-httplib/0.14.1
+
+[generators]
+CMakeDeps
+CMakeToolchain

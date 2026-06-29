@@ -1,0 +1,5 @@
+---
+Checks: 'cppcoreguidelines-*'
+WarningsAsErrors: ''
+HeaderFilterRegex: ''
+FormatStyle: none
