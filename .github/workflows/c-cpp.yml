@@ -18,7 +18,7 @@ jobs:
           submodules: true
 
       - name: Install
-        run: make install
+        run: sudo make install
 
       - name: Lint
         run: make lint
