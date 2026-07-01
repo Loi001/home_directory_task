@@ -120,7 +120,7 @@ namespace logs {
 
 namespace test{
 	enum type { ALL, NONE, VALIDATE_DIRECTORY_PATH, WALK_DIRECTORY };
-	type test_value = ALL;
+	// type test_value = ALL;
 	static const std::unordered_map<std::string, type> test_values = {
 		{"all", test::ALL},
 		{"none", test::NONE},
@@ -131,7 +131,8 @@ namespace test{
 		{test::VALIDATE_DIRECTORY_PATH, "validate_directory_path"},
 		{test::WALK_DIRECTORY, "walk_directory"},
 	};
-	void start_test(doctest::Context& context)
+
+	void start_test(doctest::Context& context, type test_value)
 	{
 		if(test_value == NONE) return;
 		spdlog::info("Start test");
@@ -222,21 +223,24 @@ TEST_SUITE("validate_directory_path") {
 }
 
 TEST_SUITE("walk_directory") {
-    TEST_CASE("valid dir") {
-        json result = walk_directory(".");
-        CHECK(result.contains("audio_files"));
-        CHECK(result.contains("video_files"));
-        CHECK(result.contains("image_files"));
-        CHECK(result["audio_files"].is_array());
-        CHECK(result["video_files"].is_array());
-        CHECK(result["image_files"].is_array());
-    }
-    TEST_CASE("nonexistent dir") {
-        json result = walk_directory("/nonexistent_path");
-        CHECK(result.contains("audio_files"));
-        CHECK(result["audio_files"].is_array());
-        CHECK(result["audio_files"].empty());
-    }
+	TEST_CASE("valid dir") {
+	auto tmp = std::filesystem::temp_directory_path() / "wd_test_dir";
+	std::filesystem::create_directories(tmp);
+	std::ofstream(tmp / "a.mp3").close();
+	std::ofstream(tmp / "b.mp4").close();
+
+	json result = walk_directory(tmp);
+	CHECK(result["audio_files"].size() == 1);
+	CHECK(result["video_files"].size() == 1);
+
+	std::filesystem::remove_all(tmp);
+	}
+	TEST_CASE("nonexistent dir") {
+		json result = walk_directory("/nonexistent_path");
+		CHECK(result.contains("audio_files"));
+		CHECK(result["audio_files"].is_array());
+		CHECK(result["audio_files"].empty());
+	}
 }
 
 int main(int argc, char** argv) {
@@ -248,6 +252,8 @@ int main(int argc, char** argv) {
 	test::type test_value = test::ALL;
 	output::type output_data_type = output::ALL;
 
+	bool exit_after_test = false;
+
 	for (int i = 1; i < argc; ++i)
 	{
 		std::string arg = argv[i];
@@ -256,6 +262,7 @@ int main(int argc, char** argv) {
 			std::cout << "Invalid test value: " << arg << std::endl;
 			return 1;
 		}
+
 		auto log_type = parse_arg(arg, "--log-type=", logs::log_types, log_output_type);
 		if (log_type == parse_result::INVALID_VALUE) {
 			std::cout << "Invalid log type: " << arg << std::endl;
@@ -272,12 +279,18 @@ int main(int argc, char** argv) {
 			return 1;
 		}
 
+		if (arg == "--exit") {
+			exit_after_test = true;
+			continue;
+		}
 	}
 
 	logs::init_log(log_output_type, logs_level);
 	spdlog::flush_on(spdlog::level::debug);
 
-	test::start_test(context);
+	test::start_test(context, test_value);
+
+	if(exit_after_test) return 0;
 
 	std::string home_directory;
 	std::filesystem::path output_dir;
