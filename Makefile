@@ -1,22 +1,18 @@
-
-.PHONY : build install lint
-
-build: 	
-	cmake --build --preset conan-debug
+.PHONY: build install lint test
 
 install:
-	echo hello
-	apt install cmake
-	apt install cpython3 python3-pip
-	pip install conan --break-system-packages
-	echo 'export PATH="$$HOME/.local/bin:$$PATH"' >> ~/.bashrc
-	source ~/.bashrc
-	conan profile detect
-	conan install . --output-folder=build --build=missing
+	sudo apt-get update -y
+	sudo apt-get install -y cmake python3 python3-pip clang-tidy doctest-dev libspdlog-dev libcpp-httplib-dev nlohmann-json3-dev
+	pip install conan --break-system-packages --user
+	conan profile detect --force
+	conan install . --output-folder=build --build=missing -s build_type=Debug
+
+build:
 	cmake --preset conan-debug
-	apt-get install clang-tidy
-	sudo apt-get install doctest-dev
-	sudo apt install libspdlog-dev
-	sudo apt install libcpp-httplib-dev
+	cmake --build --preset conan-debug
+
 lint:
 	clang-tidy -p build/compile_commands.json main.cpp
+
+test:
+	ctest --preset conan-debug --output-on-failure

@@ -13,18 +13,17 @@ jobs:
 
     steps:
     
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
         with:
           submodules: true
-
       - name: Install
         run: make install
+
+      - name: Build
+        run: make build
 
       - name: Lint
         run: make lint
 
       - name: Test
         run: make test
-
-      - name: Build
-        run: make build
